@@ -1,0 +1,176 @@
+esphome:
+  name: lolin-s3-mini-pro
+  libraries:
+    - "Wire"
+    - "SPI"
+    # - "SensorLib"
+    - "SensorLib@0.2.1"  # Some change after v0.2.1 makes compiling fail
+  on_boot:
+    then:
+      # Turn on backlight and power to neopixel
+      -   output.turn_on: backlight_output
+      -   output.turn_on: neopixel_power
+
+
+external_components:
+    -   source: github://dala318/esphome-qmi8658
+
+# Example configuration entry
+esp32:
+  board: esp32-s3-devkitc-1
+#  board: lolin32
+  variant: esp32s3
+  framework:
+    type: arduino
+  #framework:
+   # type: esp-idf
+
+
+
+# Enable logging for debugging
+logger:
+
+# Enable the Home Assistant API
+api:
+
+# Enable over-the-air updates
+ota:
+  - platform: esphome
+
+wifi:
+    ssid: !secret wifi_ssid
+    password: !secret wifi_pw
+    fast_connect: on
+
+## I2C bus for the IMU sensor
+#i2c:
+#  sda: GPIO35
+#  scl: GPIO36
+#
+#
+## QMI8658C 6-axis IMU sensor
+#sensor:
+#  - platform: qmi8658
+#    address: 0x6B
+#    acceleration_x:
+#      name: "IMU Accelerometer X"
+#    acceleration_y:
+#      name: "IMU Accelerometer Y"
+#    acceleration_z:
+#      name: "IMU Accelerometer Z"
+#    gyroscope_x:
+#      name: "IMU Gyroscope X"
+#    gyroscope_y:
+#      name: "IMU Gyroscope Y"
+#    gyroscope_z:
+#      name: "IMU Gyroscope Z"
+#    temperature:
+#      name: "QMI8658 Temperature"
+#      filters:
+#        - offset: 34.0
+#    update_interval: 5s
+
+# WS2812 LED
+# PIN GPIO07 needs to be HIGH so it gets power
+light:
+  - platform: esp32_rmt_led_strip
+    rgb_order: RGB
+    id: neopixel
+    pin: GPIO08
+    num_leds: 1
+    rmt_channel: 0
+    chipset: ws2812
+    name: "Neopixel"
+
+# Backlight and WS2812 Power Supply
+output:
+  - platform: gpio
+    pin: GPIO07
+    id: neopixel_power
+  - platform: gpio
+    pin: GPIO33
+    id: backlight_output
+
+# Buttons
+binary_sensor:
+
+  - platform: gpio
+    name: "Button - Left"
+    pin:
+      number: GPIO0
+      inverted: true
+      mode:
+          input: true
+          pullup: true
+    on_press:
+      then:
+        - light.turn_on:
+            id: neopixel
+            red: 1
+            green: 0
+            blue: 0
+
+  - platform: gpio
+    name: "Button - Middle"
+    pin:
+      number: GPIO47
+      inverted: true
+      mode:
+          input: true
+          pullup: true
+    on_press:
+      then:
+        - light.turn_on:
+            id: neopixel
+            red: 0
+            green: 1
+            blue: 0
+
+  - platform: gpio
+    name: "Button - Right"
+    pin:
+      number: GPIO48
+      inverted: true
+      mode:
+          input: true
+          pullup: true
+    on_press:
+      then:
+        - light.turn_on:
+            id: neopixel
+            red: 0
+            green: 0
+            blue: 1
+
+# Infrared transmitter
+#remote_transmitter:
+#  pin: GPIO9
+#  carrier_duty_percent: 50%
+
+spi:
+  clk_pin: GPIO40
+  mosi_pin: GPIO38
+
+display:
+  - platform: ili9xxx
+    id: disp
+    dimensions:
+      height: 128
+      width: 128
+      offset_height: 1
+      offset_width: 2
+    model: st7789v
+    data_rate: 80MHz
+    cs_pin: GPIO35
+    dc_pin: GPIO36
+    reset_pin: GPIO34
+    invert_colors: true
+    transform:
+      mirror_x: true
+      mirror_y: true
+    show_test_card: true
+
+font:
+  - file: "gfonts://Roboto"
+    id: my_font
+    size: 24
