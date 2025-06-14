@@ -109,6 +109,12 @@ binary_sensor:
             red: 1
             green: 0
             blue: 0
+        # 1. First, change the label text in memory
+        - lambda: !lambda |-
+            lv_label_set_text(id(label_battery_soc), "Left Button!");
+        # 2. Then, tell LVGL to redraw the screen
+        - lvgl.update:
+              disp_bg_color: 0x0000FF
 
   - platform: gpio
     name: "Button - Middle"
@@ -125,6 +131,12 @@ binary_sensor:
             red: 0
             green: 1
             blue: 0
+        # 1. First, change the label text in memory
+        - lambda: !lambda |-
+            lv_label_set_text(id(label_house_power), "Middle Button!");
+        # 2. Then, tell LVGL to redraw the screen
+        - lvgl.update:
+              disp_bg_color: 0x0000FF
 
   - platform: gpio
     name: "Button - Right"
@@ -141,6 +153,14 @@ binary_sensor:
             red: 0
             green: 0
             blue: 1
+        # 1. You can change multiple labels in one lambda
+        - lambda: !lambda |-
+            lv_label_set_text(id(label_battery_soc), "Right Button");
+            lv_label_set_text(id(label_house_power), "Pressed!");
+        # 2. Then, tell LVGL to redraw the screen
+        - lvgl.update:
+              disp_bg_color: 0x0000FF
+
 
 # Infrared transmitter
 #remote_transmitter:
@@ -168,15 +188,60 @@ display:
     transform:
       mirror_x: true
       mirror_y: true
-    lambda: |-
-      // Print "Hello" at position (x=5, y=10) using our font.
-      it.print(5, 10, id(my_font), "Hello!");
 
-      // Center the text "Lolin S3" horizontally and vertically.
-      it.printf(it.get_width() / 2, it.get_height() / 2, id(my_font), TextAlign::CENTER, "Lolin S3");
 
-      // You can also change the color.
-      it.print(5, 80, id(my_font), Color(255, 0, 0), "ESPHome"); // Red text
+lvgl:
+    log_level: INFO
+    color_depth: 16
+    bg_color: 0
+    border_width: 0
+    outline_width: 0
+    text_font: unscii_16
+    align: center
+    style_definitions:
+      - id: font_style
+        text_font: MONTSERRAT_12
+        align: center
+        text_color: 0xFFFFFF
+        bg_opa: TRANSP
+        bg_color: 0
+        radius: 4
+        pad_all: 2
+      - id: details_style
+        text_font: MONTSERRAT_16
+        align: center
+        text_color: 0xFFFFFF
+        bg_opa: TRANSP
+        bg_color: 0
+        radius: 4
+        pad_all: 2
+    page_wrap: true
+    pages:
+      - id: main_page
+        widgets:
+          - obj: # Meter
+              height: 128
+              width: 128
+              align: center
+              bg_color: 0
+              border_width: 0
+              outline_width: 0
+              pad_all: 0
+              scrollbar_mode: "off"
+              widgets:
+                - label:
+                    styles: font_style
+                    id: label_battery_soc
+                    y: -38
+                    x: 0
+                    text: "Battery SOC"
+                - label:
+                    styles: font_style
+                    id: label_house_power
+                    text_color: 0xffffff
+                    y: -6
+                    x: 0
+                    text: "House Power"
 
 font:
   - file: "gfonts://Roboto"
