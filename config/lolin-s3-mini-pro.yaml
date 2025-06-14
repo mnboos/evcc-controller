@@ -168,7 +168,15 @@ display:
     transform:
       mirror_x: true
       mirror_y: true
-    show_test_card: true
+    lambda: |-
+      // Print "Hello" at position (x=5, y=10) using our font.
+      it.print(5, 10, id(my_font), "Hello!");
+
+      // Center the text "Lolin S3" horizontally and vertically.
+      it.printf(it.get_width() / 2, it.get_height() / 2, id(my_font), TextAlign::CENTER, "Lolin S3");
+
+      // You can also change the color.
+      it.print(5, 80, id(my_font), Color(255, 0, 0), "ESPHome"); // Red text
 
 font:
   - file: "gfonts://Roboto"
