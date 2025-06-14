@@ -104,16 +104,16 @@ binary_sensor:
           pullup: true
     on_press:
       then:
-        - light.turn_on:
-            id: neopixel
-            red: 1
-            green: 0
-            blue: 0
+#        - light.turn_on:
+#            id: neopixel
+#            red: 1
+#            green: 0
+#            blue: 0
         - lambda: !lambda |-
             // Check if the active screen is the select page
             if (lv_disp_get_scr_act(NULL) == id(select_page)->obj) {
               // Pass the raw object pointer to the LVGL function
-              lv_roller_set_selected(id(roller_id)->obj, lv_roller_get_selected(id(roller_id)->obj) - 1, LV_ANIM_ON);
+              lv_roller_set_selected(id(roller_id)->obj, lv_roller_get_selected(id(roller_id)->obj) + 1, LV_ANIM_ON);
             }
         - lvgl.update:
               disp_bg_color: 0x0000FF
@@ -128,19 +128,46 @@ binary_sensor:
           pullup: true
     on_press:
       then:
-        - light.turn_on:
-            id: neopixel
-            red: 0
-            green: 1
-            blue: 0
-        - lambda: !lambda |-
-            if (lv_disp_get_scr_act(NULL) == id(main_page)->obj) {
-              // If we are currently on the main page, load the select page.
-              lv_scr_load(id(select_page)->obj);
-            } else {
-              // Otherwise, we must be on the select page, so load the main page.
-              lv_scr_load(id(main_page)->obj);
-            }
+#        - light.turn_on:
+#            id: neopixel
+#            red: 0
+#            green: 1
+#            blue: 0
+        - if:
+            # Condition: Check if we are currently on the select page
+            condition:
+              lambda: 'return lv_disp_get_scr_act(NULL) == id(select_page)->obj;'
+            # If TRUE: We're on the roller page, so confirm the selection.
+            then:
+              # Action 1: Call the HA service to update the original select entity
+                - lambda: |-
+                        ESP_LOGD("main", "Confirming selection and exiting edit mode.");
+#                        id(edit_mode_active) = false;
+                - homeassistant.action:
+                      action: select.select_option
+                      data_template:
+                        entity_id: select.evcc_warp_3_mode
+                        option: !lambda |-
+                          char buf[32];
+                          lv_roller_get_selected_str(id(roller_id)->obj, buf, sizeof(buf));
+                            ESP_LOGD("main", "Running the service-lambda now...");
+                          return std::string(buf);
+                - lambda: !lambda 'lv_scr_load(id(main_page)->obj);'
+#              - homeassistant.service:
+#                  service: select.select_option
+#                  data:
+#                    entity_id: select.evcc_warp_3_mode
+#                  # This lambda now correctly gets the text and returns it.
+#                  data_template:
+#                    option: !lambda |-
+#                      char buf[32];
+#                      lv_roller_get_selected_str(id(roller_id)->obj, buf, sizeof(buf));
+#                      return std::string(buf);
+              # Action 2: Switch back to the main page
+#              - lambda: !lambda 'lv_scr_load(id(main_page)->obj);'
+            # If FALSE: We must be on the main page, so switch to the select page.
+            else:
+              - lambda: !lambda 'lv_scr_load(id(select_page)->obj);'
         - lvgl.update:
               disp_bg_color: 0x0000FF
 
@@ -154,16 +181,16 @@ binary_sensor:
           pullup: true
     on_press:
       then:
-        - light.turn_on:
-            id: neopixel
-            red: 0
-            green: 0
-            blue: 1
+#        - light.turn_on:
+#            id: neopixel
+#            red: 0
+#            green: 0
+#            blue: 1
         - lambda: !lambda |-
             // Check if the active screen is the select page
             if (lv_disp_get_scr_act(NULL) == id(select_page)->obj) {
               // Pass the raw object pointer to the LVGL function
-              lv_roller_set_selected(id(roller_id)->obj, lv_roller_get_selected(id(roller_id)->obj) + 1, LV_ANIM_ON);
+              lv_roller_set_selected(id(roller_id)->obj, lv_roller_get_selected(id(roller_id)->obj) - 1, LV_ANIM_ON);
             }
         # 2. Then, tell LVGL to redraw the screen
         - lvgl.update:
@@ -193,9 +220,10 @@ display:
     dc_pin: GPIO36
     reset_pin: GPIO34
     invert_colors: true
-    transform:
-      mirror_x: true
-      mirror_y: true
+    rotation: 90
+#    transform:
+#      mirror_x: true
+#      mirror_y: true
 
 
 lvgl:
@@ -249,7 +277,7 @@ lvgl:
             - roller:
                   align: CENTER
                   id: roller_id
-                  mode: INFINITE
+#                  mode: INFINITE
                   options:
                       - "off"
                       - "pv"
@@ -262,23 +290,23 @@ font:
     size: 24
 
 # LVGL Select - binds directly to the roller widget
-select:
-  - platform: lvgl
-    widget: roller_id
-    name: "EVCC Mode Select"
-    id: evcc_mode_select
-    on_value:
-      then:
-        # 1. Send the new value to Home Assistant
-        - homeassistant.service:
-            service: select.select_option
-            data:
-              entity_id: select.evcc_warp_3_mode
-              # 'x' contains the selected option text (e.g., "pv")
-              option: !lambda 'return x;'
-        # 2. Also update the label on your main page immediately
-        - lambda: !lambda |-
-            lv_label_set_text(id(label_current_mode), x.c_str());
+#select:
+#  - platform: lvgl
+#    widget: roller_id
+#    name: "EVCC Mode Select"
+#    id: evcc_mode_select
+#    on_value:
+#      then:
+#        # 1. Send the new value to Home Assistant
+#        - homeassistant.service:
+#            service: select.select_option
+#            data:
+#              entity_id: select.evcc_warp_3_mode
+#              # 'x' contains the selected option text (e.g., "pv")
+#              option: !lambda 'return x;'
+#        # 2. Also update the label on your main page immediately
+#        - lambda: !lambda |-
+#            lv_label_set_text(id(label_current_mode), x.c_str());
 
 # Text sensor for Home Assistant integration
 text_sensor:
@@ -288,12 +316,28 @@ text_sensor:
     on_value:
       then:
         # Update the LVGL select and main page label when Home Assistant changes
-        - select.set:
-            id: evcc_mode_select
-            option: !lambda "return x;"
+#        - select.set:
+#            id: evcc_mode_select
+#            option: !lambda "return x;"
         # Update the current mode display on main page
         - lambda: !lambda |-
             lv_label_set_text(id(label_current_mode), x.c_str());
+              
+        # Action 3 (THE FIX): Manually update the roller's visual position
+        - lambda: !lambda |-
+            // Define the roller options exactly as they appear in your YAML
+            const char *options[] = {"off", "pv", "minpv", "now"};
+            int num_options = sizeof(options) / sizeof(options[0]);
+
+            // Loop through the options to find the index that matches the text from Home Assistant (x)
+            for (int i = 0; i < num_options; i++) {
+              if (strcmp(x.c_str(), options[i]) == 0) {
+                // We found a match! Set the roller to this index.
+                // Use LV_ANIM_OFF for an instant update, not a scroll animation.
+                lv_roller_set_selected(id(roller_id)->obj, i, LV_ANIM_OFF);
+                break; // Exit the loop since we found our match
+              }
+            }
 
 
 ## Automation to sync changes from LVGL select back to Home Assistant
