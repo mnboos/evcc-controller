@@ -109,10 +109,12 @@ binary_sensor:
             red: 1
             green: 0
             blue: 0
-        # 1. First, change the label text in memory
         - lambda: !lambda |-
-            lv_label_set_text(id(label_battery_soc), "Left Button!");
-        # 2. Then, tell LVGL to redraw the screen
+            // Check if the active screen is the select page
+            if (lv_disp_get_scr_act(NULL) == id(select_page)->obj) {
+              // Pass the raw object pointer to the LVGL function
+              lv_roller_set_selected(id(roller_id)->obj, lv_roller_get_selected(id(roller_id)->obj) - 1, LV_ANIM_ON);
+            }
         - lvgl.update:
               disp_bg_color: 0x0000FF
 
@@ -131,10 +133,14 @@ binary_sensor:
             red: 0
             green: 1
             blue: 0
-        # 1. First, change the label text in memory
         - lambda: !lambda |-
-            lv_label_set_text(id(label_house_power), "Middle Button!");
-        # 2. Then, tell LVGL to redraw the screen
+            if (lv_disp_get_scr_act(NULL) == id(main_page)->obj) {
+              // If we are currently on the main page, load the select page.
+              lv_scr_load(id(select_page)->obj);
+            } else {
+              // Otherwise, we must be on the select page, so load the main page.
+              lv_scr_load(id(main_page)->obj);
+            }
         - lvgl.update:
               disp_bg_color: 0x0000FF
 
@@ -153,10 +159,12 @@ binary_sensor:
             red: 0
             green: 0
             blue: 1
-        # 1. You can change multiple labels in one lambda
         - lambda: !lambda |-
-            lv_label_set_text(id(label_battery_soc), "Right Button");
-            lv_label_set_text(id(label_house_power), "Pressed!");
+            // Check if the active screen is the select page
+            if (lv_disp_get_scr_act(NULL) == id(select_page)->obj) {
+              // Pass the raw object pointer to the LVGL function
+              lv_roller_set_selected(id(roller_id)->obj, lv_roller_get_selected(id(roller_id)->obj) + 1, LV_ANIM_ON);
+            }
         # 2. Then, tell LVGL to redraw the screen
         - lvgl.update:
               disp_bg_color: 0x0000FF
@@ -217,33 +225,86 @@ lvgl:
         pad_all: 2
     page_wrap: true
     pages:
-      - id: main_page
-        widgets:
-          - obj: # Meter
-              height: 128
-              width: 128
-              align: center
-              bg_color: 0
-              border_width: 0
-              outline_width: 0
-              pad_all: 0
-              scrollbar_mode: "off"
-              widgets:
-                - label:
-                    styles: font_style
-                    id: label_battery_soc
-                    y: -38
-                    x: 0
-                    text: "Battery SOC"
-                - label:
-                    styles: font_style
-                    id: label_house_power
-                    text_color: 0xffffff
-                    y: -6
-                    x: 0
-                    text: "House Power"
+        - id: main_page
+          widgets:
+            - obj: # Container
+                height: 128
+                width: 128
+                align: center
+                bg_color: 0
+                border_width: 0
+                outline_width: 0
+                pad_all: 0
+                scrollbar_mode: "off"
+                widgets:
+                  - label:
+                      styles: details_style
+                      id: label_current_mode
+                      align: center
+                      text: "Loading..." # Changed initial text
+
+        # --- THIS IS THE SECOND PAGE ---
+        - id: select_page
+          widgets:
+            - roller:
+                  align: CENTER
+                  id: roller_id
+                  mode: INFINITE
+                  options:
+                      - "off"
+                      - "pv"
+                      - "minpv"
+                      - "now"
 
 font:
   - file: "gfonts://Roboto"
     id: my_font
     size: 24
+
+# LVGL Select - binds directly to the roller widget
+select:
+  - platform: lvgl
+    widget: roller_id
+    name: "EVCC Mode Select"
+    id: evcc_mode_select
+    on_value:
+      then:
+        # 1. Send the new value to Home Assistant
+        - homeassistant.service:
+            service: select.select_option
+            data:
+              entity_id: select.evcc_warp_3_mode
+              # 'x' contains the selected option text (e.g., "pv")
+              option: !lambda 'return x;'
+        # 2. Also update the label on your main page immediately
+        - lambda: !lambda |-
+            lv_label_set_text(id(label_current_mode), x.c_str());
+
+# Text sensor for Home Assistant integration
+text_sensor:
+  - platform: homeassistant
+    entity_id: select.evcc_warp_3_mode
+    id: ha_evcc_mode_text
+    on_value:
+      then:
+        # Update the LVGL select and main page label when Home Assistant changes
+        - select.set:
+            id: evcc_mode_select
+            option: !lambda "return x;"
+        # Update the current mode display on main page
+        - lambda: !lambda |-
+            lv_label_set_text(id(label_current_mode), x.c_str());
+
+
+## Automation to sync changes from LVGL select back to Home Assistant
+## When the roller changes, update Home Assistant
+#automation:
+#  - trigger:
+#      - platform: state
+#        entity_id: select.evcc_mode_select  # This is the LVGL select
+#    action:
+#      - homeassistant.service:
+#          service: select.select_option
+#          data:
+#            entity_id: select.evcc_warp_3_mode
+#            option: "{{ trigger.to_state.state }}"
