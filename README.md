@@ -1,6 +1,6 @@
 # evcc-controller
 
-## Setup
+## Setup S3 Mini Pro
 
 ### Enable flash mode
 
@@ -13,4 +13,13 @@
 ```bash
 cd config
 esphome run lolin-s3-mini-pro.yaml
+```
+
+## Setup viewe C3 Rotary Encoder
+
+### Firmware
+
+```bash
+cd config
+esphome run viewe-s3-rotary.yaml
 ```
