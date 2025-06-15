@@ -2,6 +2,8 @@
 
 ## Setup S3 Mini Pro
 
+See: [VIEWESMART/UEDX24240013-MD50ESP32_1.3inch-Knob](https://github.com/VIEWESMART/UEDX24240013-MD50ESP32_1.3inch-Knob)
+
 ### Enable flash mode
 
 1. `Press + hold` the `0` button
