@@ -151,22 +151,14 @@ lvgl:
     text_font: unscii_16
     align: center
     style_definitions:
-      - id: font_style
-        text_font: MONTSERRAT_12
+      - id: my_style
+        text_font: my_font
         align: center
         text_color: 0xFFFFFF
         bg_opa: TRANSP
         bg_color: 0
-        radius: 4
-        pad_all: 2
-      - id: details_style
-        text_font: MONTSERRAT_16
-        align: center
-        text_color: 0xFFFFFF
-        bg_opa: TRANSP
-        bg_color: 0
-        radius: 4
-        pad_all: 2
+#        radius: 4
+#        pad_all: 2
     top_layer:
         widgets:
             - label:
@@ -183,8 +175,8 @@ lvgl:
         - id: main_page
           widgets:
             - obj: # Container
-                height: 128
-                width: 128
+                height: 240
+                width: 240
                 align: center
                 bg_color: 0
                 border_width: 0
@@ -193,7 +185,7 @@ lvgl:
                 scrollbar_mode: "off"
                 widgets:
                   - label:
-                      styles: details_style
+                      styles: my_style
                       id: label_current_mode
                       align: center
                       text: "Loading..." # Changed initial text
@@ -204,7 +196,17 @@ lvgl:
             - roller:
                   align: CENTER
                   id: roller_id
-#                  mode: INFINITE
+                  styles: my_style
+                  visible_row_count: 4
+                  width: 240
+                  height: 240
+                  radius: 120
+                  pad_all: 0
+                  border_opa: 0
+                  outline_opa: 0
+                  shadow_opa: 0
+                  bg_opa: 0
+                  clip_corner: true
                   options:
                       - "off"
                       - "pv"
@@ -214,7 +216,7 @@ lvgl:
 font:
   - file: "gfonts://Roboto"
     id: my_font
-    size: 24
+    size: 48
 
 # LVGL Select - binds directly to the roller widget
 select:
