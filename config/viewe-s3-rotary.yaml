@@ -90,10 +90,20 @@ binary_sensor:
                       data_template:
                         entity_id: select.evcc_warp_3_mode
                         option: !lambda |-
-                          char buf[32];
-                          lv_roller_get_selected_str(id(roller_id)->obj, buf, sizeof(buf));
-                            ESP_LOGD("main", "Running the service-lambda now...");
-                          return std::string(buf);
+                            // <<< MODIFICATION: MAP FROM INDEX TO MACHINE VALUE
+                            // Define the machine-readable values in the exact same order as the roller options.
+                            const char *machine_values[] = {"off", "pv", "minpv", "now"};
+                            
+                            // Get the numerical index of the selected item on the roller.
+                            int selected_index = lv_roller_get_selected(id(roller_id)->obj);
+                            
+                            // Return the machine value from the array at that index.
+                            return std::string(machine_values[selected_index]);
+#                        option: !lambda |-
+#                          char buf[32];
+#                          lv_roller_get_selected_str(id(roller_id)->obj, buf, sizeof(buf));
+#                            ESP_LOGD("main", "Running the service-lambda now...");
+#                          return std::string(buf);
                 - lambda: !lambda 'lv_scr_load(id(main_page)->obj);'
 
             else:
@@ -152,11 +162,13 @@ lvgl:
     align: center
     style_definitions:
       - id: my_style
-        text_font: my_font
+        text_font: roboto_icons_42
         align: center
         text_color: 0xFFFFFF
         bg_opa: TRANSP
         bg_color: 0
+      - id: roller_style
+        bg_color: "0xFF0000"
 #        radius: 4
 #        pad_all: 2
     top_layer:
@@ -174,21 +186,30 @@ lvgl:
     pages:
         - id: main_page
           widgets:
-            - obj: # Container
-                height: 240
-                width: 240
-                align: center
-                bg_color: 0
-                border_width: 0
-                outline_width: 0
-                pad_all: 0
-                scrollbar_mode: "off"
-                widgets:
-                  - label:
-                      styles: my_style
-                      id: label_current_mode
-                      align: center
-                      text: "Loading..." # Changed initial text
+            - label:
+                  styles: my_style
+                  id: label_current_mode
+                  long_mode: WRAP
+                  width: SIZE_CONTENT
+                  height: SIZE_CONTENT
+                  align: center
+                  text: "Loading..." # Changed initial text
+#            - obj: # Container
+##                height: 240
+##                width: 240
+#                align: center
+#                bg_color: 0
+#                border_width: 0
+#                outline_width: 0
+#                pad_all: 0
+#                scrollbar_mode: "off"
+#                widgets:
+#                  - label:
+#                      styles: my_style
+#                      id: label_current_mode
+#                      long_mode: SCROLL
+#                      align: center
+#                      text: "Loading..." # Changed initial text
 
         # --- THIS IS THE SECOND PAGE ---
         - id: select_page
@@ -196,27 +217,55 @@ lvgl:
             - roller:
                   align: CENTER
                   id: roller_id
-                  styles: my_style
+                  styles:
+                    - my_style
                   visible_row_count: 4
                   width: 240
                   height: 240
                   radius: 120
-                  pad_all: 0
+                  pad_all: 50
                   border_opa: 0
                   outline_opa: 0
                   shadow_opa: 0
                   bg_opa: 0
                   clip_corner: true
-                  options:
-                      - "off"
-                      - "pv"
-                      - "minpv"
-                      - "now"
+                  options: # <<< CHANGE THESE TO BE HUMAN-READABLE
+                      - "\U000F125D Aus"
+                      - "\U000F1A73 PV"
+                      - "\U000F0A72 PV+"
+                      - "\U000F140B Sofort"
 
 font:
   - file: "gfonts://Roboto"
     id: my_font
     size: 48
+    bpp: 4
+  - file: "fonts/RobotoCondensed-Regular.ttf"
+    id: roboto_icons_42
+    size: 42
+    bpp: 4
+    extras:
+      - file: "fonts/materialdesignicons-webfont.ttf"
+        glyphs: [
+          "\U000F02D1", # mdi-heart
+          "\U000F05D4", # mdi-airplane-landing
+          "\U000F05A8", # white-balance-sunny
+          "\U000F0A72", # solar-power
+          "\U000F140B", # lightning-bolt
+          "\U000F125D", # battery-off
+          "\U000F1A73", # solar-power-variant
+          ]
+#  - file: "fonts/Montserrat-Regular.ttf"
+#    id: montserrat_icons_42
+#    size: 42
+#    bpp: 4
+#    extras:
+#      - file: "fonts/materialdesignicons-webfont.ttf"
+#        glyphs: [
+#          "\U000F02D1", # mdi-heart
+#          "\U000F05D4", # mdi-airplane-landing
+#          "\U000F05A8", # white-balance-sunny
+#          ]
 
 # LVGL Select - binds directly to the roller widget
 select:
@@ -235,7 +284,9 @@ select:
               option: !lambda 'return x;'
         # 2. Also update the label on your main page immediately
         - lambda: !lambda |-
-            lv_label_set_text(id(label_current_mode), x.c_str());
+              if (x.c_str() != lv_label_get_text(id(label_current_mode))) {
+                lv_label_set_text(id(label_current_mode), x.c_str());
+              }
 
 # Text sensor for Home Assistant integration
 text_sensor:
@@ -244,26 +295,29 @@ text_sensor:
     id: ha_evcc_mode_text
     on_value:
       then:
-        # Update the LVGL select and main page label when Home Assistant changes
-#        - select.set:
-#            id: evcc_mode_select
-#            option: !lambda "return x;"
-        # Update the current mode display on main page
         - lambda: !lambda |-
-            lv_label_set_text(id(label_current_mode), x.c_str());
+            // <<< MODIFICATION: FULL MAPPING LOGIC
+            // Define both machine and human-readable values in the same order.
+            const char *machine_values[] = {"off", "pv", "minpv", "now"};
+            const char *human_readable_values[] = {"\U000F125D Aus", "\U000F1A73 PV", "\U000F0A72 PV+", "\U000F140B Sofort"};
+            int num_options = sizeof(machine_values) / sizeof(machine_values[0]);
 
-        # Action 3 (THE FIX): Manually update the roller's visual position
-        - lambda: !lambda |-
-            // Define the roller options exactly as they appear in your YAML
-            const char *options[] = {"off", "pv", "minpv", "now"};
-            int num_options = sizeof(options) / sizeof(options[0]);
+            // Ignore invalid states from Home Assistant
+            if (x.empty() || x == "unknown") {
+              return;
+            }
 
-            // Loop through the options to find the index that matches the text from Home Assistant (x)
+            // Find the index that matches the machine value from Home Assistant (x)
             for (int i = 0; i < num_options; i++) {
-              if (strcmp(x.c_str(), options[i]) == 0) {
-                // We found a match! Set the roller to this index.
-                // Use LV_ANIM_OFF for an instant update, not a scroll animation.
+              if (strcmp(x.c_str(), machine_values[i]) == 0) {
+                // We found a match at index 'i'!
+
+                // 1. Update the label on the main page with the human-readable text.
+                lv_label_set_text(id(label_current_mode), human_readable_values[i]);
+
+                // 2. Set the roller's visual selection to this index.
                 lv_roller_set_selected(id(roller_id)->obj, i, LV_ANIM_OFF);
+                
                 break; // Exit the loop since we found our match
               }
             }
