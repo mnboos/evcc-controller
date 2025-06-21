@@ -1,28 +1,12 @@
 esphome:
   name: viewe-c3-rotary
-  libraries:
-    - "Wire"
-    - "SPI"
-    # - "SensorLib"
-    - "SensorLib@0.2.1"  # Some change after v0.2.1 makes compiling fail
-#  on_boot:
-#    then:
-#      # Turn on backlight and power to neopixel
-#      -   output.turn_on: backlight_output
 
-
-external_components:
-    -   source: github://dala318/esphome-qmi8658
 
 # Example configuration entry
 esp32:
   board: esp32-c3-devkitm-1
-#  board: lolin32
-#  variant: esp32s3
   framework:
     type: arduino
-  #framework:
-   # type: esp-idf
 
 
 
@@ -31,6 +15,18 @@ logger:
 
 # Enable the Home Assistant API
 api:
+    on_client_connected:
+        -   if:
+                condition:
+                    lambda: 'return (0 == client_info.find("Home Assistant "));'
+                then:
+                    -   lvgl.widget.show: lbl_hastatus
+    on_client_disconnected:
+        -   if:
+                condition:
+                    lambda: 'return (0 == client_info.find("Home Assistant "));'
+                then:
+                    -   lvgl.widget.hide: lbl_hastatus
 
 # Enable over-the-air updates
 ota:
@@ -39,181 +35,89 @@ ota:
 wifi:
     ssid: !secret wifi_ssid
     password: !secret wifi_pw
-#    power_save_mode: HIGH
-#    fast_connect: on
 
-## I2C bus for the IMU sensor
-#i2c:
-#  sda: GPIO35
-#  scl: GPIO36
-#
-#
-## QMI8658C 6-axis IMU sensor
-#sensor:
-#  - platform: qmi8658
-#    address: 0x6B
-#    acceleration_x:
-#      name: "IMU Accelerometer X"
-#    acceleration_y:
-#      name: "IMU Accelerometer Y"
-#    acceleration_z:
-#      name: "IMU Accelerometer Z"
-#    gyroscope_x:
-#      name: "IMU Gyroscope X"
-#    gyroscope_y:
-#      name: "IMU Gyroscope Y"
-#    gyroscope_z:
-#      name: "IMU Gyroscope Z"
-#    temperature:
-#      name: "QMI8658 Temperature"
-#      filters:
-#        - offset: 34.0
-#    update_interval: 5s
-
-# WS2812 LED
-# PIN GPIO07 needs to be HIGH so it gets power
-#light:
-#  - platform: esp32_rmt_led_strip
-#    rgb_order: RGB
-#    id: neopixel
-#    pin: GPIO08
-#    num_leds: 1
-#    rmt_channel: 0
-#    chipset: ws2812
-#    name: "Neopixel"
-
-
+# This is the ROTATION part of the knob
+sensor:
+  - platform: rotary_encoder
+    name: "LVGL Control Encoder"
+    id: rotary_encoder_sensor
+    pin_a: GPIO6
+    pin_b: GPIO7
+    resolution: 2
+    on_clockwise:
+        - lambda: !lambda |-
+              // Check if the active screen is the select page
+              if (lv_disp_get_scr_act(NULL) == id(select_page)->obj) {
+                // Pass the raw object pointer to the LVGL function
+                lv_roller_set_selected(id(roller_id)->obj, lv_roller_get_selected(id(roller_id)->obj) + 1, LV_ANIM_ON);
+              }
+        - lvgl.update:
+            disp_bg_color: 0x0000FF
+    on_anticlockwise:
+        - lambda: !lambda |-
+            // Check if the active screen is the select page
+            if (lv_disp_get_scr_act(NULL) == id(select_page)->obj) {
+              // Pass the raw object pointer to the LVGL function
+              lv_roller_set_selected(id(roller_id)->obj, lv_roller_get_selected(id(roller_id)->obj) - 1, LV_ANIM_ON);
+            }
+        - lvgl.update:
+            disp_bg_color: 0x0000FF
 
 # Buttons
-#binary_sensor:
-#
-#  - platform: gpio
-#    name: "Button - Left"
-#    pin:
-#      number: GPIO0
-#      inverted: true
-#      mode:
-#          input: true
-#          pullup: true
-#    on_press:
-#      then:
-##        - light.turn_on:
-##            id: neopixel
-##            red: 1
-##            green: 0
-##            blue: 0
-#        - lambda: !lambda |-
-#            // Check if the active screen is the select page
-#            if (lv_disp_get_scr_act(NULL) == id(select_page)->obj) {
-#              // Pass the raw object pointer to the LVGL function
-#              lv_roller_set_selected(id(roller_id)->obj, lv_roller_get_selected(id(roller_id)->obj) + 1, LV_ANIM_ON);
-#            }
-#        - lvgl.update:
-#              disp_bg_color: 0x0000FF
-#
-#  - platform: gpio
-#    name: "Button - Middle"
-#    pin:
-#      number: GPIO47
-#      inverted: true
-#      mode:
-#          input: true
-#          pullup: true
-#    on_press:
-#      then:
-##        - light.turn_on:
-##            id: neopixel
-##            red: 0
-##            green: 1
-##            blue: 0
-#        - if:
-#            # Condition: Check if we are currently on the select page
-#            condition:
-#              lambda: 'return lv_disp_get_scr_act(NULL) == id(select_page)->obj;'
-#            # If TRUE: We're on the roller page, so confirm the selection.
-#            then:
-#              # Action 1: Call the HA service to update the original select entity
-#                - lambda: |-
-#                        ESP_LOGD("main", "Confirming selection and exiting edit mode.");
-##                        id(edit_mode_active) = false;
-#                - homeassistant.action:
-#                      action: select.select_option
-#                      data_template:
-#                        entity_id: select.evcc_warp_3_mode
-#                        option: !lambda |-
-#                          char buf[32];
-#                          lv_roller_get_selected_str(id(roller_id)->obj, buf, sizeof(buf));
-#                            ESP_LOGD("main", "Running the service-lambda now...");
-#                          return std::string(buf);
-#                - lambda: !lambda 'lv_scr_load(id(main_page)->obj);'
-##              - homeassistant.service:
-##                  service: select.select_option
-##                  data:
-##                    entity_id: select.evcc_warp_3_mode
-##                  # This lambda now correctly gets the text and returns it.
-##                  data_template:
-##                    option: !lambda |-
-##                      char buf[32];
-##                      lv_roller_get_selected_str(id(roller_id)->obj, buf, sizeof(buf));
-##                      return std::string(buf);
-#              # Action 2: Switch back to the main page
-##              - lambda: !lambda 'lv_scr_load(id(main_page)->obj);'
-#            # If FALSE: We must be on the main page, so switch to the select page.
-#            else:
-#              - lambda: !lambda 'lv_scr_load(id(select_page)->obj);'
-#        - lvgl.update:
-#              disp_bg_color: 0x0000FF
-#
-#  - platform: gpio
-#    name: "Button - Right"
-#    pin:
-#      number: GPIO48
-#      inverted: true
-#      mode:
-#          input: true
-#          pullup: true
-#    on_press:
-#      then:
-##        - light.turn_on:
-##            id: neopixel
-##            red: 0
-##            green: 0
-##            blue: 1
-#        - lambda: !lambda |-
-#            // Check if the active screen is the select page
-#            if (lv_disp_get_scr_act(NULL) == id(select_page)->obj) {
-#              // Pass the raw object pointer to the LVGL function
-#              lv_roller_set_selected(id(roller_id)->obj, lv_roller_get_selected(id(roller_id)->obj) - 1, LV_ANIM_ON);
-#            }
-#        # 2. Then, tell LVGL to redraw the screen
-#        - lvgl.update:
-#              disp_bg_color: 0x0000FF
+binary_sensor:
+  - platform: gpio
+    name: "Button - Middle"
+    pin:
+      number: GPIO9
+      inverted: true
+      mode:
+          input: true
+          pullup: true
+    on_press:
+      then:
+        - if:
+            # Condition: Check if we are currently on the select page
+            condition:
+              lambda: 'return lv_disp_get_scr_act(NULL) == id(select_page)->obj;'
+            # If TRUE: We're on the roller page, so confirm the selection.
+            then:
+              # Action 1: Call the HA service to update the original select entity
+                - lambda: |-
+                        ESP_LOGD("main", "Confirming selection and exiting edit mode.");
+#                        id(edit_mode_active) = false;
+                - homeassistant.action:
+                      action: select.select_option
+                      data_template:
+                        entity_id: select.evcc_warp_3_mode
+                        option: !lambda |-
+                          char buf[32];
+                          lv_roller_get_selected_str(id(roller_id)->obj, buf, sizeof(buf));
+                            ESP_LOGD("main", "Running the service-lambda now...");
+                          return std::string(buf);
+                - lambda: !lambda 'lv_scr_load(id(main_page)->obj);'
 
-
-# Infrared transmitter
-#remote_transmitter:
-#  pin: GPIO9
-#  carrier_duty_percent: 50%
+            else:
+              - lambda: !lambda 'lv_scr_load(id(select_page)->obj);'
+        - lvgl.update:
+              disp_bg_color: 0x0000FF
 
 # Backlight and WS2812 Power Supply
 output:
   - platform: ledc
     pin: GPIO8
     id: backlight_output
+    inverted: true
 
-# UNCOMMENT AND USE THIS
 light:
   - platform: monochromatic
     output: backlight_output
     name: "Display Backlight"
     id: back_light
+    restore_mode: ALWAYS_ON
     initial_state:
-      brightness: 0%
-      color_mode: BRIGHTNESS
-#      state: off
-    # This tells ESPHome to remember the last state and restore it on boot.
-    # ALWAYS_ON will ensure it turns on, but in a more controlled way.
-#    restore_mode: ALWAYS_ON
+        brightness: 80%
+        color_mode: BRIGHTNESS
+
 
 spi:
   clk_pin: GPIO1
@@ -222,7 +126,7 @@ spi:
 display:
   - platform: ili9xxx
     id: disp
-    show_test_card: true
+#    show_test_card: true
     dimensions:
       height: 240
       width: 240
@@ -235,72 +139,77 @@ display:
 #    reset_pin: GPIO5
     reset_pin: GPIO2
     invert_colors: true
-#    lambda: |-
-#      // Syntax is always: it.print(<x>, <y>, <font>, [color=COLOR_ON], [align], <text>, [color=COLOR_OFF]);
-#      it.print(120, 120, id(my_font), COLOR_ON, TextAlign::CENTER, "Just\U000f05d4here. Already\U000F02D1this.", COLOR_OFF);
-#    rotation: 90
-#    transform:
-#      mirror_x: true
-#      mirror_y: true
 
 
-#lvgl:
-#    log_level: INFO
-#    color_depth: 16
-#    bg_color: 0
-#    border_width: 0
-#    outline_width: 0
-#    text_font: unscii_16
-#    align: center
-#    style_definitions:
-#      - id: font_style
-#        text_font: MONTSERRAT_12
-#        align: center
-#        text_color: 0xFFFFFF
-#        bg_opa: TRANSP
-#        bg_color: 0
-#        radius: 4
-#        pad_all: 2
-#      - id: details_style
-#        text_font: MONTSERRAT_16
-#        align: center
-#        text_color: 0xFFFFFF
-#        bg_opa: TRANSP
-#        bg_color: 0
-#        radius: 4
-#        pad_all: 2
-#    page_wrap: true
-#    pages:
-#        - id: main_page
-#          widgets:
-#            - obj: # Container
-#                height: 128
-#                width: 128
-#                align: center
-#                bg_color: 0
-#                border_width: 0
-#                outline_width: 0
-#                pad_all: 0
-#                scrollbar_mode: "off"
-#                widgets:
-#                  - label:
-#                      styles: details_style
-#                      id: label_current_mode
-#                      align: center
-#                      text: "Loading..." # Changed initial text
 
-#        # --- THIS IS THE SECOND PAGE ---
-#        - id: select_page
-#          widgets:
-#            - roller:
-#                  align: CENTER
-#                  id: roller_id
-##                  mode: INFINITE
-#                  options:
-#                      - "off"
-#                      - "pv"
-#                      - "minpv"
-#                      - "now"
+lvgl:
+    log_level: INFO
+    color_depth: 16
+    bg_color: 0
+    border_width: 0
+    outline_width: 0
+    text_font: unscii_16
+    align: center
+    style_definitions:
+      - id: font_style
+        text_font: MONTSERRAT_12
+        align: center
+        text_color: 0xFFFFFF
+        bg_opa: TRANSP
+        bg_color: 0
+        radius: 4
+        pad_all: 2
+      - id: details_style
+        text_font: MONTSERRAT_16
+        align: center
+        text_color: 0xFFFFFF
+        bg_opa: TRANSP
+        bg_color: 0
+        radius: 4
+        pad_all: 2
+    top_layer:
+        widgets:
+            - label:
+                text: "\uF1EB"
+                id: lbl_hastatus
+                hidden: true
+                align: top_right
+                x: -2
+                y: 7
+                text_align: right
+                text_color: 0xFFFFFF
+    page_wrap: true
+    pages:
+        - id: main_page
+          widgets:
+            - obj: # Container
+                height: 128
+                width: 128
+                align: center
+                bg_color: 0
+                border_width: 0
+                outline_width: 0
+                pad_all: 0
+                scrollbar_mode: "off"
+                widgets:
+                  - label:
+                      styles: details_style
+                      id: label_current_mode
+                      align: center
+                      text: "Loading..." # Changed initial text
+
+        # --- THIS IS THE SECOND PAGE ---
+        - id: select_page
+          widgets:
+            - roller:
+                  align: CENTER
+                  id: roller_id
+#                  mode: INFINITE
+                  options:
+                      - "off"
+                      - "pv"
+                      - "minpv"
+                      - "now"
 
 font:
   - file: "gfonts://Roboto"
@@ -308,65 +217,51 @@ font:
     size: 24
 
 # LVGL Select - binds directly to the roller widget
-#select:
-#  - platform: lvgl
-#    widget: roller_id
-#    name: "EVCC Mode Select"
-#    id: evcc_mode_select
-#    on_value:
-#      then:
-#        # 1. Send the new value to Home Assistant
-#        - homeassistant.service:
-#            service: select.select_option
-#            data:
-#              entity_id: select.evcc_warp_3_mode
-#              # 'x' contains the selected option text (e.g., "pv")
-#              option: !lambda 'return x;'
-#        # 2. Also update the label on your main page immediately
-#        - lambda: !lambda |-
-#            lv_label_set_text(id(label_current_mode), x.c_str());
+select:
+  - platform: lvgl
+    widget: roller_id
+    name: "EVCC Mode Select"
+    id: evcc_mode_select
+    on_value:
+      then:
+        # 1. Send the new value to Home Assistant
+        - homeassistant.service:
+            service: select.select_option
+            data:
+              entity_id: select.evcc_warp_3_mode
+              # 'x' contains the selected option text (e.g., "pv")
+              option: !lambda 'return x;'
+        # 2. Also update the label on your main page immediately
+        - lambda: !lambda |-
+            lv_label_set_text(id(label_current_mode), x.c_str());
 
 # Text sensor for Home Assistant integration
-#text_sensor:
-#  - platform: homeassistant
-#    entity_id: select.evcc_warp_3_mode
-#    id: ha_evcc_mode_text
-#    on_value:
-#      then:
-#        # Update the LVGL select and main page label when Home Assistant changes
-##        - select.set:
-##            id: evcc_mode_select
-##            option: !lambda "return x;"
-#        # Update the current mode display on main page
-#        - lambda: !lambda |-
-#            lv_label_set_text(id(label_current_mode), x.c_str());
-#
-#        # Action 3 (THE FIX): Manually update the roller's visual position
-#        - lambda: !lambda |-
-#            // Define the roller options exactly as they appear in your YAML
-#            const char *options[] = {"off", "pv", "minpv", "now"};
-#            int num_options = sizeof(options) / sizeof(options[0]);
-#
-#            // Loop through the options to find the index that matches the text from Home Assistant (x)
-#            for (int i = 0; i < num_options; i++) {
-#              if (strcmp(x.c_str(), options[i]) == 0) {
-#                // We found a match! Set the roller to this index.
-#                // Use LV_ANIM_OFF for an instant update, not a scroll animation.
-#                lv_roller_set_selected(id(roller_id)->obj, i, LV_ANIM_OFF);
-#                break; // Exit the loop since we found our match
-#              }
-#            }
+text_sensor:
+  - platform: homeassistant
+    entity_id: select.evcc_warp_3_mode
+    id: ha_evcc_mode_text
+    on_value:
+      then:
+        # Update the LVGL select and main page label when Home Assistant changes
+#        - select.set:
+#            id: evcc_mode_select
+#            option: !lambda "return x;"
+        # Update the current mode display on main page
+        - lambda: !lambda |-
+            lv_label_set_text(id(label_current_mode), x.c_str());
 
+        # Action 3 (THE FIX): Manually update the roller's visual position
+        - lambda: !lambda |-
+            // Define the roller options exactly as they appear in your YAML
+            const char *options[] = {"off", "pv", "minpv", "now"};
+            int num_options = sizeof(options) / sizeof(options[0]);
 
-## Automation to sync changes from LVGL select back to Home Assistant
-## When the roller changes, update Home Assistant
-#automation:
-#  - trigger:
-#      - platform: state
-#        entity_id: select.evcc_mode_select  # This is the LVGL select
-#    action:
-#      - homeassistant.service:
-#          service: select.select_option
-#          data:
-#            entity_id: select.evcc_warp_3_mode
-#            option: "{{ trigger.to_state.state }}"
+            // Loop through the options to find the index that matches the text from Home Assistant (x)
+            for (int i = 0; i < num_options; i++) {
+              if (strcmp(x.c_str(), options[i]) == 0) {
+                // We found a match! Set the roller to this index.
+                // Use LV_ANIM_OFF for an instant update, not a scroll animation.
+                lv_roller_set_selected(id(roller_id)->obj, i, LV_ANIM_OFF);
+                break; // Exit the loop since we found our match
+              }
+            }
